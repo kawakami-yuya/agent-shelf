@@ -23,14 +23,14 @@ Claude Code と Codex に持たせている「基本ルール（CLAUDE.md / AGEN
 ### 2. 開く
 
 **Mac の場合**
-1. `Agent Shelf を開く (Mac).command` をダブルクリック
+1. `Open-AgentShelf-Mac.command` をダブルクリック
 2. 初回に「開発元が未確認のため開けません」と出たら、ファイルを **右クリック →「開く」→「開く」** を選んでください（2回目からはダブルクリックで開けます）
 3. Python が入っていない場合は、インストールの案内が出るので「インストール」を押してから、もう一度開いてください
 
 **Windows の場合**
 1. 先に Python をインストールします：<https://www.python.org/downloads/>
    - インストール画面の最初で **「Add python.exe to PATH」にチェック** を入れてください
-2. `Agent Shelf を開く (Windows).bat` をダブルクリック
+2. `Open-AgentShelf-Windows.bat` をダブルクリック
 3. 「WindowsによってPCが保護されました」と出たら **「詳細情報」→「実行」** を選んでください
 
 ### 3. 初回だけ：作業フォルダを教える
