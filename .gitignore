@@ -1,0 +1,9 @@
+# 生成物と個人設定（あなたの設定内容が入るので絶対に公開しない）
+index.html
+shelf_config.json
+
+# ローカル環境
+.claude/
+__pycache__/
+.DS_Store
+Thumbs.db

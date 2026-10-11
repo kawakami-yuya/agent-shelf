@@ -1,0 +1,884 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agent Shelf</title>
+<style>
+:root{
+  --bg:#f6f6f7; --panel:#ffffff; --ink:#1d1d1f; --ink-2:#5b5b63; --ink-3:#97979f;
+  --line:#ececee; --line-2:#dcdce0; --hover:#f4f4f6; --sel:#eef0f6; --accent:#1d1d1f;
+  --claude:#c96a3a; --claude-bg:#fbefe8; --codex:#3b64d8; --codex-bg:#ebf0fc;
+  --ok:#2f8a57; --ok-bg:#e9f6ee; --warn:#b7791f; --warn-bg:#fdf3e2; --bad:#c2453d; --bad-bg:#fcebea;
+  --code-bg:#f5f5f7;
+  --shadow:0 1px 2px rgba(20,20,30,.04),0 4px 14px rgba(20,20,30,.05);
+  --radius:14px;
+  --sans:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP","Segoe UI",sans-serif;
+  --mono:ui-monospace,"SF Mono",Menlo,monospace;
+  --k-instructions:#6e6ad6; --k-skill:#2f9e74; --k-agent:#cf5f92; --k-task:#d69a2d; --k-memory:#3d97c4;
+  --k-config:#9a9aa3; --k-hook:#cf6f4c; --k-reference:#8a78c8; --k-plugin:#a5ab52;
+}
+:root[data-theme="dark"]{
+  --bg:#141416; --panel:#1c1c1f; --ink:#f0f0f2; --ink-2:#ababb3; --ink-3:#74747c;
+  --line:#2a2a2e; --line-2:#38383d; --hover:#232327; --sel:#262a35; --accent:#f0f0f2;
+  --claude:#e59266; --claude-bg:#3a2a21; --codex:#7d9cf5; --codex-bg:#222a3d;
+  --ok:#64c48c; --ok-bg:#1d3326; --warn:#e3ab4f; --warn-bg:#3a2f1c; --bad:#ec7a72; --bad-bg:#3d2221;
+  --code-bg:#232327; --shadow:0 1px 2px rgba(0,0,0,.3);
+  --k-instructions:#9895f2; --k-skill:#57c79c; --k-agent:#e889b4; --k-task:#e8b65a; --k-memory:#6dbde6;
+  --k-config:#8f8f98; --k-hook:#ea9576; --k-reference:#ae9ff0; --k-plugin:#c6cc73;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:var(--bg);color:var(--ink);font:14px/1.7 var(--sans);-webkit-font-smoothing:antialiased;letter-spacing:.01em}
+button{font:inherit;color:inherit}
+a{color:inherit}
+.app{display:grid;grid-template-columns:232px 380px 1fr;grid-template-rows:64px 1fr;height:100vh}
+
+/* header */
+header{grid-column:1/-1;display:flex;align-items:center;gap:18px;padding:0 22px;background:var(--panel);border-bottom:1px solid var(--line)}
+.brand{display:flex;align-items:center;gap:10px;white-space:nowrap}
+.brand .logo{width:30px;height:30px;border-radius:9px;background:var(--ink);color:var(--panel);display:grid;place-items:center}
+.brand b{font-size:15px;letter-spacing:.02em}
+.brand small{display:block;font-size:11px;color:var(--ink-3);font-weight:400;line-height:1.2}
+.search{flex:1;max-width:460px;position:relative}
+.search input{width:100%;height:38px;border:1px solid var(--line);border-radius:999px;background:var(--bg);color:var(--ink);padding:0 16px 0 38px;font:inherit;outline:none;transition:.15s}
+.search input:focus{background:var(--panel);border-color:var(--line-2);box-shadow:0 0 0 4px var(--hover)}
+.search svg{position:absolute;left:14px;top:12px;color:var(--ink-3)}
+.hctl{display:flex;align-items:center;gap:12px;margin-left:auto}
+.pills{display:flex;background:var(--bg);border-radius:999px;padding:3px;border:1px solid var(--line)}
+.pills button{border:0;background:transparent;border-radius:999px;padding:4px 12px;font-size:12.5px;cursor:pointer;color:var(--ink-2)}
+.pills button.on{background:var(--panel);color:var(--ink);box-shadow:var(--shadow);font-weight:600}
+.lbl{font-size:12px;color:var(--ink-3)}
+.switch{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--ink-2);cursor:pointer;user-select:none;white-space:nowrap}
+.switch input{appearance:none;width:30px;height:18px;border-radius:9px;background:var(--line-2);position:relative;cursor:pointer;transition:.15s;margin:0}
+.switch input::after{content:"";position:absolute;width:14px;height:14px;border-radius:50%;background:#fff;top:2px;left:2px;transition:.15s;box-shadow:0 1px 2px rgba(0,0,0,.2)}
+.switch input:checked{background:var(--ink)}
+.switch input:checked::after{left:14px}
+.iconbtn{width:34px;height:34px;border-radius:50%;border:1px solid var(--line);background:var(--panel);cursor:pointer;color:var(--ink-2);display:grid;place-items:center}
+
+/* sidebar */
+nav{background:var(--panel);border-right:1px solid var(--line);overflow:auto;padding:16px 12px}
+nav .nh{font-size:11px;color:var(--ink-3);padding:14px 10px 6px;font-weight:600}
+nav button{display:flex;width:100%;align-items:center;gap:10px;border:0;background:transparent;padding:7px 10px;border-radius:10px;cursor:pointer;text-align:left;color:var(--ink-2);font-size:13.5px}
+nav button:hover{background:var(--hover);color:var(--ink)}
+nav button.on{background:var(--sel);color:var(--ink);font-weight:600}
+nav .n{margin-left:auto;font-size:12px;color:var(--ink-3);font-variant-numeric:tabular-nums}
+nav .side-cta{margin:18px 4px 0;padding:14px;border-radius:12px;background:var(--bg);font-size:12px;color:var(--ink-2);line-height:1.6}
+nav .side-cta b{display:block;color:var(--ink);font-size:13px;margin-bottom:2px}
+nav .side-cta button{margin-top:10px;width:100%;justify-content:center;background:var(--ink);color:var(--panel);font-weight:600;font-size:12.5px;padding:8px}
+nav .side-cta button:hover{background:var(--ink);color:var(--panel);opacity:.88}
+
+/* icon chips */
+.ki{width:28px;height:28px;border-radius:8px;display:grid;place-items:center;flex:none}
+.ki svg{width:16px;height:16px}
+.ki.sm{width:22px;height:22px;border-radius:6px}
+.ki.sm svg{width:13px;height:13px}
+.ki.lg{width:40px;height:40px;border-radius:11px}
+.ki.lg svg{width:21px;height:21px}
+
+/* list */
+.list{overflow:auto;background:var(--bg);border-right:1px solid var(--line)}
+.lh{position:sticky;top:0;z-index:2;background:color-mix(in srgb,var(--bg) 92%,transparent);backdrop-filter:blur(8px);padding:14px 16px 10px;display:flex;align-items:center;justify-content:space-between;gap:10px}
+.lh .t{font-weight:700;font-size:14px}
+.lh .t small{font-weight:400;color:var(--ink-3);margin-left:6px;font-size:12px}
+.lh .pills button{padding:3px 10px;font-size:12px}
+.lintro{margin:0 16px 8px;font-size:12px;color:var(--ink-2)}
+.grp{font-size:11.5px;color:var(--ink-3);padding:14px 18px 6px;font-weight:600}
+.cards{padding:0 12px 40px;display:flex;flex-direction:column;gap:8px}
+.card{display:block;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px;cursor:pointer;text-decoration:none;transition:.12s}
+.card:hover{border-color:var(--line-2);box-shadow:var(--shadow)}
+.card.on{border-color:var(--ink);box-shadow:0 0 0 1px var(--ink)}
+.card .top{display:flex;align-items:center;gap:10px}
+.card .nm{font-weight:600;font-size:13.5px;line-height:1.4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.card .d{color:var(--ink-2);font-size:12.5px;line-height:1.6;margin-top:6px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.card .meta{display:flex;gap:6px;align-items:center;margin-top:8px;flex-wrap:wrap;font-size:11.5px;color:var(--ink-3)}
+.chip{display:inline-flex;align-items:center;gap:4px;font-size:11px;border-radius:999px;padding:1px 8px;background:var(--bg);color:var(--ink-2);white-space:nowrap;line-height:1.7}
+.chip.claude{background:var(--claude-bg);color:var(--claude)}
+.chip.codex{background:var(--codex-bg);color:var(--codex)}
+.chip.warn{background:var(--warn-bg);color:var(--warn)}
+.chip.ok{background:var(--ok-bg);color:var(--ok)}
+.chip.bad{background:var(--bad-bg);color:var(--bad)}
+.empty{padding:50px 20px;color:var(--ink-3);text-align:center;font-size:13px}
+mark{background:#ffe9a8;color:inherit;border-radius:3px;padding:0 1px}
+
+/* tree (list) */
+.tree{padding:0 10px 40px;font-size:13px}
+.tree .tools{display:flex;gap:12px;padding:0 8px 8px}
+.linkbtn{border:0;background:none;color:var(--ink-2);font-size:12px;cursor:pointer;padding:0;text-decoration:underline;text-decoration-color:var(--line-2);text-underline-offset:3px}
+.linkbtn:hover{color:var(--ink)}
+.tn{display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:8px;cursor:pointer;white-space:nowrap}
+.tn:hover{background:var(--hover)}
+.tn.on{background:var(--sel)}
+.tn .car{width:12px;flex:none;color:var(--ink-3);font-size:9px;text-align:center;transition:transform .15s}
+.tn.open .car{transform:rotate(90deg)}
+.tn .lb{overflow:hidden;text-overflow:ellipsis;min-width:0}
+.tn.dir .lb{font-weight:600}
+.tn .cnt{margin-left:auto;font-size:11.5px;color:var(--ink-3);padding-left:8px}
+.tc{display:none}
+.tc.open{display:block}
+.fold{color:var(--ink-3);flex:none}
+
+/* main */
+main{overflow:auto;background:var(--panel)}
+.doc{max-width:880px;margin:0 auto;padding:36px 44px 90px}
+.eyebrow{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ink-2);flex-wrap:wrap}
+h1.title{font-size:28px;line-height:1.35;margin:10px 0 8px;letter-spacing:-.01em;font-weight:700}
+.lede{color:var(--ink-2);font-size:15px;line-height:1.8;margin:0 0 20px}
+h2.sec{font-size:17px;margin:44px 0 6px;display:flex;align-items:baseline;gap:10px}
+.sec-sub{color:var(--ink-2);font-size:13px;margin:0 0 16px}
+.btn.back{display:none}
+.btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line-2);background:var(--panel);border-radius:999px;padding:6px 14px;font-size:12.5px;cursor:pointer;text-decoration:none;color:var(--ink);white-space:nowrap}
+.btn:hover{background:var(--hover)}
+.pbtn{display:inline-flex;align-items:center;gap:8px;border:0;background:var(--ink);color:var(--panel);border-radius:999px;padding:11px 22px;font-size:13.5px;font-weight:600;cursor:pointer;white-space:nowrap}
+.pbtn:hover{opacity:.88}
+.pbtn:disabled{opacity:.4;cursor:default}
+
+/* overview */
+.health{display:flex;align-items:center;gap:22px;background:linear-gradient(0deg,var(--bg),var(--bg));border-radius:var(--radius);padding:22px 24px;margin:8px 0 0}
+.health .hn{display:flex;gap:26px}
+.health .hn div{font-size:12px;color:var(--ink-2)}
+.health .hn b{display:block;font-size:26px;line-height:1.2;color:var(--ink);font-variant-numeric:tabular-nums}
+.health .hn b.bad{color:var(--bad)}
+.health .htxt{flex:1;min-width:0}
+.health .htxt strong{display:block;font-size:15px;margin-bottom:2px}
+.health .htxt span{font-size:12.5px;color:var(--ink-2)}
+.kgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.kcard{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px;cursor:pointer;transition:.12s;display:flex;gap:12px;align-items:flex-start}
+.kcard:hover{box-shadow:var(--shadow);border-color:var(--line-2)}
+.kcard .kn{font-size:22px;font-weight:700;line-height:1.1;font-variant-numeric:tabular-nums}
+.kcard .kl{font-size:13px;font-weight:600;margin-top:2px}
+.kcard .kd{font-size:11.5px;color:var(--ink-3);line-height:1.5;margin-top:3px}
+.kcard .ks{display:flex;gap:6px;margin-top:8px}
+.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;position:relative}
+.step{background:var(--bg);border-radius:12px;padding:16px;position:relative}
+.step .no{width:24px;height:24px;border-radius:50%;background:var(--ink);color:var(--panel);font-size:12px;font-weight:700;display:grid;place-items:center;margin-bottom:8px}
+.step b{display:block;font-size:13.5px}
+.step span{font-size:12px;color:var(--ink-2);display:block;margin-top:2px}
+.step .go{margin-top:8px;font-size:12px}
+.step:not(:last-child)::after{content:"→";position:absolute;right:-9px;top:50%;transform:translateY(-50%);color:var(--ink-3);font-size:14px;background:var(--panel);border-radius:50%;width:18px;text-align:center;z-index:1}
+.lnk{cursor:pointer;text-decoration:underline;text-decoration-color:var(--line-2);text-underline-offset:3px}
+.lnk:hover{text-decoration-color:var(--ink)}
+.syncsum{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px}
+.syncsum div{border-radius:12px;padding:14px 16px}
+.syncsum b{display:block;font-size:24px;line-height:1.2}
+.syncsum span{font-size:12px}
+.rows{border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.rowi{display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid var(--line);font-size:13px;cursor:pointer}
+.rowi:last-child{border-bottom:0}
+.rowi:hover{background:var(--hover)}
+.rowi .grow{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rowi .sub{color:var(--ink-3);font-size:12px;white-space:nowrap}
+.bar{height:6px;background:var(--line);border-radius:3px;overflow:hidden;width:120px;flex:none}
+.bar i{display:block;height:100%;border-radius:3px}
+.more{display:block;margin:10px auto 0}
+
+/* diagram */
+.dg-wrap{border:1px solid var(--line);border-radius:var(--radius);padding:18px 18px 14px;background:var(--panel)}
+.dg-bar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.dg-tools{display:flex;gap:14px;align-items:center;font-size:12px;color:var(--ink-2);flex-wrap:wrap}
+.kleg{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:11.5px;color:var(--ink-2);margin:12px 0 4px}
+.kleg span{display:flex;align-items:center;gap:5px}
+.kleg i{width:9px;height:9px;border-radius:3px;display:inline-block}
+.dg-scroll{overflow-x:auto;padding:10px 2px 6px}
+.dg{position:relative}
+.dg-lines{position:absolute;left:0;top:0;pointer-events:none;overflow:visible}
+.dg-lines path{fill:none;stroke:var(--line-2);stroke-width:1.5}
+.dn{position:absolute;background:var(--panel);border:1px solid var(--line-2);border-radius:10px;padding:6px 10px;cursor:pointer;transition:.12s}
+.dn:hover{box-shadow:var(--shadow);border-color:var(--ink-3)}
+.dn.on{box-shadow:0 0 0 2px var(--ink)}
+.dn.g-claude{background:var(--claude-bg);border-color:color-mix(in srgb,var(--claude) 30%,transparent)}
+.dn.g-codex{background:var(--codex-bg);border-color:color-mix(in srgb,var(--codex) 30%,transparent)}
+.dn.g-root{background:var(--ink);border-color:var(--ink);color:var(--panel)}
+.dn.g-root .dn-c,.dn.g-root .dn-s{color:color-mix(in srgb,var(--panel) 70%,transparent)}
+.dn.g-archive{background:var(--warn-bg)}
+.dn-t{display:flex;align-items:center;gap:5px;font-size:12px;font-weight:600;line-height:1.35;min-width:0}
+.dn-n{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.dn-c{margin-left:auto;font-size:11px;color:var(--ink-2);font-weight:500;padding-left:4px}
+.dn-s{font-size:10.5px;color:var(--ink-3);line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dn .sbar{margin-top:5px}
+.sbar{display:flex;height:5px;border-radius:3px;overflow:hidden;background:var(--line)}
+.sbar i{display:block;height:100%}
+.rd{width:7px;height:7px;border-radius:50%;flex:none;border:1.5px solid var(--line-2)}
+.rd.c{background:var(--claude);border-color:var(--claude)} .rd.x{background:var(--codex);border-color:var(--codex)}
+.dn-tg{position:absolute;right:-13px;top:50%;transform:translateY(-50%);min-width:24px;height:22px;padding:0 6px;border-radius:11px;border:1px solid var(--line-2);background:var(--panel);font-size:10.5px;color:var(--ink-2);cursor:pointer;z-index:1;font-weight:600}
+.dn-tg:hover{color:var(--ink);border-color:var(--ink-3)}
+
+/* detail */
+.facts{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:22px 0}
+.facts div{background:var(--bg);border-radius:12px;padding:12px 14px}
+.facts b{display:block;font-size:11.5px;color:var(--ink-3);font-weight:500}
+.facts span{font-size:13.5px;font-weight:600}
+.notice{display:flex;gap:10px;align-items:flex-start;border-radius:12px;padding:12px 14px;font-size:13px;margin:0 0 18px}
+.notice.ok{background:var(--ok-bg)} .notice.warn{background:var(--warn-bg)} .notice.info{background:var(--bg)}
+.notice a{cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+.reader{border-top:1px solid var(--line);padding-top:8px}
+.reader-h{font-size:12px;color:var(--ink-3);margin:18px 0 0;font-weight:600}
+details.tech{margin-top:36px;border:1px solid var(--line);border-radius:12px;padding:0 16px}
+details.tech summary{cursor:pointer;padding:12px 0;font-size:13px;color:var(--ink-2);list-style:none;display:flex;align-items:center;gap:8px}
+details.tech summary::before{content:"▸";transition:.15s;color:var(--ink-3)}
+details.tech[open] summary::before{transform:rotate(90deg)}
+details.tech .in{padding:0 0 16px;font-size:12.5px}
+.kv{display:grid;grid-template-columns:120px 1fr;gap:6px 12px;margin:0}
+.kv dt{color:var(--ink-3)}
+.kv dd{margin:0;word-break:break-all}
+.kv code,.codeline{font-family:var(--mono);font-size:11.5px;background:var(--code-bg);padding:2px 6px;border-radius:5px}
+
+.md{font-size:14.5px;line-height:1.9}
+.md h1,.md h2,.md h3,.md h4{line-height:1.45;margin:1.9em 0 .6em}
+.md h1{font-size:20px} .md h2{font-size:18px} .md h3{font-size:15.5px} .md h4{font-size:14.5px;color:var(--ink-2)}
+.md p{margin:.7em 0}
+.md ul,.md ol{padding-left:1.4em;margin:.5em 0}
+.md li{margin:.2em 0}
+.md code{font-family:var(--mono);font-size:.85em;background:var(--code-bg);padding:.1em .4em;border-radius:5px}
+.md pre{background:var(--code-bg);padding:14px 16px;border-radius:10px;overflow:auto;font-size:12px;line-height:1.6}
+.md pre code{background:none;padding:0}
+.md blockquote{margin:1em 0;padding:.4em 1em;border-left:3px solid var(--line-2);color:var(--ink-2);background:var(--bg);border-radius:0 8px 8px 0}
+.md table{border-collapse:collapse;margin:1em 0;font-size:13px;display:block;overflow:auto}
+.md th,.md td{border:1px solid var(--line);padding:7px 11px;text-align:left;vertical-align:top}
+.md th{background:var(--bg)}
+.md hr{border:0;border-top:1px solid var(--line);margin:2em 0}
+.md a{color:var(--codex)}
+pre.raw{background:var(--code-bg);padding:16px;border-radius:10px;overflow:auto;font:12px/1.6 var(--mono);white-space:pre-wrap;word-break:break-word}
+
+/* suggestions */
+.filters{display:flex;gap:8px;margin:20px 0 6px;flex-wrap:wrap}
+.filters button{border:1px solid var(--line-2);background:var(--panel);border-radius:999px;padding:6px 14px;font-size:12.5px;cursor:pointer;color:var(--ink-2)}
+.filters button.on{background:var(--ink);color:var(--panel);border-color:var(--ink)}
+.scard{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);margin:12px 0;overflow:hidden;transition:.12s}
+.scard:hover{box-shadow:var(--shadow)}
+.sh{display:flex;gap:14px;align-items:flex-start;padding:18px 20px;cursor:pointer}
+.sh .cb{appearance:none;width:20px;height:20px;border-radius:6px;border:1.5px solid var(--line-2);flex:none;margin:2px 0 0;cursor:pointer;display:grid;place-items:center}
+.sh .cb:checked{background:var(--ink);border-color:var(--ink)}
+.sh .cb:checked::after{content:"";width:5px;height:9px;border:solid var(--panel);border-width:0 2px 2px 0;transform:rotate(45deg) translate(-1px,-1px)}
+.stt{font-weight:700;font-size:15px;line-height:1.5}
+.sdesc{font-size:13px;color:var(--ink-2);margin-top:4px;line-height:1.7}
+.smeta{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
+.chev{margin-left:auto;color:var(--ink-3);transition:.15s;flex:none;margin-top:4px}
+.scard.open .chev{transform:rotate(180deg)}
+.sbody{display:none;border-top:1px solid var(--line);background:var(--bg);padding:16px 20px 18px 54px}
+.scard.open .sbody{display:block}
+.why{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
+.why div{background:var(--panel);border-radius:10px;padding:12px 14px;font-size:12.5px;line-height:1.7}
+.why b{display:block;font-size:12px;color:var(--ink-3);margin-bottom:2px}
+.ents{background:var(--panel);border-radius:10px;overflow:hidden}
+.ent{padding:11px 14px;border-bottom:1px solid var(--line);font-size:13px}
+.ent:last-child{border-bottom:0}
+.ent .el{font-weight:600}
+.ent .ed{color:var(--ink-2);font-size:12.5px;margin-top:2px}
+.ent details{margin-top:6px}
+.ent summary{font-size:11.5px;color:var(--ink-3);cursor:pointer}
+.ent pre.df{margin:6px 0 0;background:var(--code-bg);border-radius:8px;padding:8px 10px;font:11px/1.55 var(--mono);white-space:pre-wrap;word-break:break-all;max-height:220px;overflow:auto}
+.df .a{color:var(--ok)} .df .d{color:var(--bad)}
+.cmd{display:flex;gap:6px;align-items:flex-start;margin-top:6px}
+.cmd code{flex:1;font:11px/1.55 var(--mono);background:var(--code-bg);border-radius:8px;padding:7px 9px;word-break:break-all}
+.snote{font-size:12px;color:var(--ink-2);margin-top:12px}
+.dock{position:sticky;bottom:16px;margin-top:24px;background:var(--ink);color:var(--panel);border-radius:999px;padding:8px 8px 8px 22px;display:flex;align-items:center;justify-content:space-between;gap:12px;box-shadow:0 8px 30px rgba(0,0,0,.18)}
+.dock span{font-size:13px}
+.dock .pbtn{background:var(--panel);color:var(--ink)}
+
+@media (max-width:1180px){.app{grid-template-columns:200px 320px 1fr}.doc{padding:28px}.kgrid{grid-template-columns:repeat(2,1fr)}}
+@media (max-width:800px){
+  .app{grid-template-columns:1fr;grid-template-rows:auto auto 1fr}
+  header{flex-wrap:wrap;height:auto;padding:12px 16px;gap:10px}
+  .search{order:5;flex-basis:100%;max-width:none}
+  .hctl{margin-left:auto;gap:8px} .hctl .lbl{display:none}
+  nav{display:flex;overflow-x:auto;padding:8px 10px;border-right:0;border-bottom:1px solid var(--line);gap:4px}
+  nav .nh,nav .side-cta{display:none}
+  nav button{width:auto;white-space:nowrap}
+  .list,main{grid-column:1}
+  body.detail .list{display:none}
+  body:not(.detail) main{display:none}
+  .btn.back{display:inline-flex;margin-bottom:14px}
+  .doc{padding:18px 16px 60px}
+  .facts,.kgrid,.syncsum,.steps,.why{grid-template-columns:1fr 1fr}
+  .steps .step::after{display:none}
+  .health{flex-direction:column;align-items:flex-start}
+  .sbody{padding-left:20px}
+  .dock{border-radius:16px;flex-direction:column;align-items:stretch;padding:12px}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="brand"><div class="logo"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19V5M9 19V5M14 19l-2-14M19 19l-4-13"/></svg></div><div><b>Agent Shelf</b><small>AIの道具箱</small></div></div>
+    <label class="search">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="7" cy="7" r="5"/><path d="M11 11l3.5 3.5"/></svg>
+      <input id="q" type="search" placeholder="キーワードで探す（例: 請求書、LP、Slack）" autocomplete="off">
+    </label>
+    <div class="hctl">
+      <span class="lbl">表示するAI</span>
+      <div class="pills" id="toolSeg"><button data-v="all" class="on">両方</button><button data-v="claude">Claude</button><button data-v="codex">Codex</button></div>
+      <label class="switch"><input type="checkbox" id="arc">保管庫も表示</label>
+      <button class="iconbtn" id="theme" title="明るさを切り替え"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
+    </div>
+  </header>
+  <nav id="nav"></nav>
+  <section class="list" id="list"></section>
+  <main id="main"></main>
+</div>
+<script>
+const DATA = /*__DATA__*/null;
+
+/* ---------- 言葉の言い換え ---------- */
+const KIND = {
+  instructions:{l:"基本ルール", d:"AIが毎回最初に読む約束ごと", icon:"book"},
+  skill:       {l:"スキル", d:"「〇〇して」で呼び出す業務の手順書", icon:"spark"},
+  agent:       {l:"専門スタッフ", d:"ライター・デザイナーなど役割別のAI", icon:"user"},
+  task:        {l:"自動タスク", d:"決まった時間に自動で動く仕事", icon:"clock"},
+  memory:      {l:"記憶メモ", d:"作業を通じてAIが覚えていること", icon:"bulb"},
+  config:      {l:"設定", d:"権限や接続先などの設定", icon:"gear"},
+  hook:        {l:"安全装置", d:"危ない操作を止める見張り役", icon:"shield"},
+  reference:   {l:"参考資料", d:"必要なときに読む社内メモ", icon:"doc"},
+  plugin:      {l:"追加パック", d:"外部から追加した機能に含まれるスキル", icon:"puzzle"},
+};
+const KORDER=["instructions","skill","agent","task","memory","config","hook","reference","plugin"];
+const SCOPE = {global:"全体共通",project:"プロジェクト",archive:"保管庫",plugin:"追加パック",system:"標準搭載",rollout:"作業の振り返り"};
+const TOOL = {claude:"Claude",codex:"Codex"};
+const AREA = {"サブエージェント":"専門スタッフ","メモリ":"記憶メモ","設定・指示書":"基本ルールと設定","定期タスク":"自動タスク","Hooks":"安全装置","リファレンス":"参考資料","プラグイン":"追加パック","スキル":"スキル"};
+const SEG = {".claude":"Claude用",".agents":"Codex用",".codex":"Codex用","skills":"スキル","agents":"専門スタッフ","scheduled-tasks":"自動タスク","automations":"自動タスク","memory":"記憶メモ","memories":"記憶メモ","projects":"プロジェクト別","hooks":"安全装置","reference":"参考資料","plugins":"追加パック","rollout_summaries":"作業の振り返り","_archive":"停止中","~":"ホーム","その他":"その他のプロジェクト"};
+const ROOTS = DATA.roots||[];
+if(DATA.archive)SEG[DATA.archive]="保管庫";
+const segName = s=>SEG[s]||s;
+const stripRoot = s=>{for(const r of ROOTS){if(s===r)return s;if(s.startsWith(r+" · "))return s.slice(r.length+3);if(s.startsWith(r+"/"))return s.slice(r.length+1)}return s.replace(/^その他\//,"")};
+
+const ICONS = {
+  book:'<path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M4 21V5M8 7h7"/>',
+  spark:'<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 17l.8 2.2L22 20l-2.2.8L19 23l-.8-2.2L16 20l2.2-.8z"/>',
+  user:'<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
+  clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  bulb:'<path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z"/>',
+  gear:'<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
+  shield:'<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/>',
+  doc:'<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h5"/>',
+  puzzle:'<path d="M10 4a2 2 0 1 1 4 0v2h4v4h-2a2 2 0 1 0 0 4h2v4h-4v-2a2 2 0 1 0-4 0v2H6v-4h2a2 2 0 1 0 0-4H6V6h4z"/>',
+  home:'<path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/>',
+  wand:'<path d="M15 4V2M15 10V8M11 6h2M17 6h2M4 20L14 10"/><path d="M19 13l1 1M19 13l-1 1"/>',
+  folder:'<path d="M3 6a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+};
+const svg=(name,w=2)=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round">${ICONS[name]||""}</svg>`;
+const kicon=(k,size="")=>`<span class="ki ${size}" style="background:color-mix(in srgb,var(--k-${k}) 14%,transparent);color:var(--k-${k})">${svg(KIND[k].icon)}</span>`;
+
+const byId = Object.fromEntries(DATA.items.map(i=>[i.id,i]));
+const st = {kind:"overview", tool:"all", q:"", arc:false, sel:null, view:"list"};
+try{ Object.assign(st, JSON.parse(localStorage.getItem("shelf")||"{}"), {sel:null,q:""}); }catch(e){}
+const $ = s=>document.querySelector(s);
+const esc = s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const fmtDate = t=>{const d=new Date(t*1000);return `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`};
+const ago = t=>{const s=Date.now()/1000-t; if(s<3600)return Math.max(1,Math.round(s/60))+"分前"; if(s<86400)return Math.round(s/3600)+"時間前"; if(s<86400*45)return Math.round(s/86400)+"日前"; if(s<86400*365)return Math.round(s/86400/30)+"か月前"; return fmtDate(t)};
+const save = ()=>{try{localStorage.setItem("shelf",JSON.stringify({kind:st.kind,tool:st.tool,arc:st.arc,view:st.view}))}catch(e){}};
+
+/* 場所・名前をわかりやすく */
+function placeOf(i){
+  const [g,label]=i.loc||[];
+  if(i.kind==="memory"&&i.tool==="claude"&&g==="claude")return i.project||"Claude 全体";
+  if(g==="claude")return "Claude 全体";
+  if(g==="codex")return "Codex 全体";
+  if(g==="archive")return "保管庫";
+  if(!label)return "";
+  if(ROOTS.includes(label))return `${label} 共通`;
+  const parts=label.split("/"); if(parts.length>1&&(ROOTS.includes(parts[0])||parts[0]==="その他"))parts.shift();
+  return parts.slice(-2).join(" › ");
+}
+function nameOf(i){
+  const fn=i.path.split("/").pop();
+  if(i.kind==="instructions")return `${placeOf(i)}のルール`;
+  if(i.kind==="config"){
+    if(fn==="settings.local.json")return `${placeOf(i)}の許可設定`;
+    if(fn==="settings.json")return i.loc[0]==="workspace"?`${placeOf(i)}の設定`:"Claude の全体設定";
+    if(fn==="config.toml")return "Codex の全体設定";
+    if(fn==="hooks.json")return "Codex の安全装置の設定";
+    if(fn==="launch.json")return "プレビュー起動の設定";
+  }
+  if(i.kind==="memory"&&/^MEMORY(\.md)?$/.test(i.name))return `記憶の目次（${i.tool==="codex"?"Codex":placeOf(i)||"Claude"}）`;
+  if(i.kind==="memory"&&i.name==="memory_summary")return "記憶のまとめ（Codex）";
+  if(i.kind==="memory"&&i.name==="raw_memories")return "記憶の下書き（Codex）";
+  if(i.kind==="hook"){if(fn.includes("rm-guard"))return "削除ガード";if(fn.includes("secret-guard"))return "秘密情報ガード"}
+  return i.name;
+}
+function descOf(i){
+  if(i.desc&&!(i.kind==="instructions"&&i.desc===i.name))return i.desc;
+  if(i.kind==="instructions")return `${placeOf(i)}で作業するときに${TOOL[i.tool]}が必ず読むルールです。`;
+  if(i.kind==="config")return "このフォルダでAIに許可している操作や、接続先の設定です。";
+  return KIND[i.kind].d;
+}
+
+/* ---------- markdown（軽量） ---------- */
+function inline(s){
+  const codes=[]; s=s.replace(/`([^`]+)`/g,(_,c)=>{codes.push(c);return `\u0000${codes.length-1}\u0000`});
+  s=esc(s)
+   .replace(/!\[([^\]]*)\]\(([^)]+)\)/g,'[$1]')
+   .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g,(_,t,u)=>/^(https?:|#)/.test(u)?`<a href="${u}" target="_blank" rel="noopener">${t}</a>`:`<span title="${u}">${t}</span>`)
+   .replace(/\*\*([^*]+)\*\*/g,"<strong>$1</strong>")
+   .replace(/(^|[^*])\*([^*\s][^*]*)\*/g,"$1<em>$2</em>")
+   .replace(/~~([^~]+)~~/g,"<del>$1</del>")
+   .replace(/(^|[\s(])(https?:\/\/[^\s<)]+)/g,'$1<a href="$2" target="_blank" rel="noopener">$2</a>');
+  return s.replace(/\u0000(\d+)\u0000/g,(_,i)=>`<code>${esc(codes[i])}</code>`);
+}
+function md(src){
+  const L=src.replace(/\r/g,"").split("\n"); let o=[],i=0;
+  const isTableSep=l=>/^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/.test(l);
+  const cells=l=>l.trim().replace(/^\||\|$/g,"").split("|").map(c=>c.trim());
+  while(i<L.length){
+    let l=L[i], m;
+    if(m=l.match(/^\s*(```+|~~~+)\s*(\S*)/)){const f=m[1];let b=[];i++;while(i<L.length&&!L[i].trim().startsWith(f)){b.push(L[i]);i++}i++;o.push(`<pre><code>${esc(b.join("\n"))}</code></pre>`);continue}
+    if(m=l.match(/^(#{1,6})\s+(.*?)\s*#*$/)){const n=Math.min(m[1].length,4);o.push(`<h${n}>${inline(m[2])}</h${n}>`);i++;continue}
+    if(/^\s*([-*_])(\s*\1){2,}\s*$/.test(l)){o.push("<hr>");i++;continue}
+    if(l.includes("|")&&i+1<L.length&&isTableSep(L[i+1])){
+      const h=cells(l);i+=2;let rows=[];while(i<L.length&&L[i].includes("|")&&L[i].trim()){rows.push(cells(L[i]));i++}
+      o.push(`<table><thead><tr>${h.map(c=>`<th>${inline(c)}</th>`).join("")}</tr></thead><tbody>${rows.map(r=>`<tr>${r.map(c=>`<td>${inline(c)}</td>`).join("")}</tr>`).join("")}</tbody></table>`);continue}
+    if(/^\s*>/.test(l)){let b=[];while(i<L.length&&/^\s*>/.test(L[i])){b.push(L[i].replace(/^\s*>\s?/,""));i++}o.push(`<blockquote>${md(b.join("\n"))}</blockquote>`);continue}
+    if(/^\s*([-*+]|\d+[.)])\s+/.test(l)){
+      const parse=(base)=>{const ordered=/^\s*\d/.test(L[i]);let h=`<${ordered?"ol":"ul"}>`;
+        while(i<L.length){const mm=L[i].match(/^(\s*)([-*+]|\d+[.)])\s+(.*)$/);if(!mm)break;const ind=mm[1].length;if(ind<base)break;
+          if(ind>base){h=h.replace(/<\/li>$/,"")+parse(ind)+"</li>";continue}
+          let t=mm[3].replace(/^\[ \]\s/,"☐ ").replace(/^\[x\]\s/i,"☑ ");i++;
+          while(i<L.length&&L[i].trim()&&!/^\s*([-*+]|\d+[.)])\s+/.test(L[i])&&/^\s{2,}/.test(L[i])){t+=" "+L[i].trim();i++}
+          h+=`<li>${inline(t)}</li>`}
+        return h+`</${ordered?"ol":"ul"}>`};
+      o.push(parse(l.match(/^\s*/)[0].length));continue}
+    if(!l.trim()){i++;continue}
+    let b=[l];i++;while(i<L.length&&L[i].trim()&&!/^(#{1,6}\s|\s*```|\s*>|\s*([-*+]|\d+[.)])\s+)/.test(L[i])&&!(L[i].includes("|")&&i+1<L.length&&isTableSep(L[i+1]))){b.push(L[i]);i++}
+    o.push(`<p>${b.map(inline).join("<br>")}</p>`);
+  }
+  return o.join("\n");
+}
+
+/* ---------- 絞り込み ---------- */
+function visible(i){
+  if(st.tool!=="all"&&i.tool!==st.tool)return false;
+  if(!st.arc&&i.scope==="archive")return false;
+  return true;
+}
+function matches(i,q){
+  if(!q)return true;
+  const hay=(nameOf(i)+"\n"+i.name+"\n"+i.desc+"\n"+i.path+"\n"+placeOf(i)+"\n"+(i.plugin||"")+"\n"+i.body).toLowerCase();
+  return q.toLowerCase().split(/\s+/).filter(Boolean).every(w=>hay.includes(w));
+}
+const hl=(s,q)=>{s=esc(s);if(!q)return s;for(const w of q.split(/\s+/).filter(Boolean)){s=s.replace(new RegExp(w.replace(/[.*+?^${}()|[\]\\]/g,"\\$&"),"gi"),m=>`<mark>${m}</mark>`)}return s};
+const issueCount=()=>(DATA.suggest||[]).reduce((a,x)=>a+x.entries.length,0);
+const urgentCount=()=>(DATA.suggest||[]).filter(x=>x.pri==="high").reduce((a,x)=>a+x.entries.length,0);
+
+/* ---------- サイドバー ---------- */
+function renderNav(){
+  const pool=DATA.items.filter(visible);
+  const cnt=k=>pool.filter(i=>i.kind===k).length;
+  let h=`<button data-k="overview" class="${st.kind==="overview"&&location.hash!=="#/opt"?"on":""}"><span class="ki sm" style="background:var(--bg)">${svg("home")}</span>ホーム</button>
+    <button data-opt="1" class="${location.hash==="#/opt"?"on":""}"><span class="ki sm" style="background:var(--bad-bg);color:var(--bad)">${svg("wand")}</span>改善の提案<span class="n">${issueCount()}</span></button>
+    <div class="nh">しまってあるもの</div>`;
+  for(const k of KORDER){
+    if(k==="config")h+=`<div class="nh">裏側の設定</div>`;
+    h+=`<button data-k="${k}" class="${st.kind===k&&location.hash!=="#/opt"?"on":""}" title="${KIND[k].d}">${kicon(k,"sm")}${KIND[k].l}<span class="n">${cnt(k)}</span></button>`;
+  }
+  h+=`<div class="side-cta"><b>点検してみませんか？</b>リンク切れや置き場所のずれなど、整理のヒントをまとめています。<button data-opt="1">改善の提案を見る</button></div>`;
+  $("#nav").innerHTML=h;
+  $("#nav").querySelectorAll("[data-k]").forEach(b=>b.onclick=()=>{st.kind=b.dataset.k;st.sel=null;save();if(location.hash)location.hash="";else go()});
+  $("#nav").querySelectorAll("[data-opt]").forEach(b=>b.onclick=()=>location.hash="#/opt");
+}
+
+/* ---------- 一覧 ---------- */
+function renderList(){
+  const q=st.q.trim();
+  let pool=DATA.items.filter(visible).filter(i=>matches(i,q));
+  if(q)pool=[...pool].sort((a,b)=>KORDER.indexOf(a.kind)-KORDER.indexOf(b.kind));
+  else if(st.kind==="overview"){
+    pool=st.view==="tree"?pool.filter(i=>i.kind!=="plugin"):[...pool].filter(i=>i.kind!=="plugin"&&i.scope!=="rollout").sort((a,b)=>b.mtime-a.mtime).slice(0,30);
+  }else pool=pool.filter(i=>i.kind===st.kind);
+  const title=q?`「${esc(q)}」の検索結果`:st.kind==="overview"?(st.view==="tree"?"すべてのもの":"最近更新されたもの"):KIND[st.kind].l;
+  let h=`<div class="lh"><span class="t">${title}<small>${pool.length}件</small></span>
+    <span class="pills"><button data-v="list" class="${st.view==="list"?"on":""}">カード</button><button data-v="tree" class="${st.view==="tree"?"on":""}">フォルダ</button></span></div>`;
+  if(!q&&st.kind!=="overview")h+=`<p class="lintro">${KIND[st.kind].d}</p>`;
+  if(!pool.length)h+=`<div class="empty">見つかりませんでした。<br>別のキーワードや「両方」表示で試してみてください。</div>`;
+  if(st.view==="tree"&&pool.length){$("#list").innerHTML=h+renderTree(pool,q);bindList();return}
+  const groupKey = q ? (i=>KIND[i.kind].l) : st.kind==="overview" ? (()=>"") :
+    st.kind==="plugin" ? (i=>(i.plugin||"").split("@")[0]) : (i=>i.scope==="archive"?"保管庫":i.scope==="rollout"?"作業の振り返り":placeOf(i)||SCOPE[i.scope]);
+  const groups=new Map();
+  for(const i of pool){const g=groupKey(i);if(!groups.has(g))groups.set(g,[]);groups.get(g).push(i)}
+  for(const [g,arr] of groups){
+    if(g)h+=`<div class="grp">${esc(g)}</div>`;
+    h+=`<div class="cards">`+arr.map(i=>`<a class="card ${st.sel===i.id?"on":""}" data-id="${i.id}">
+      <div class="top">${kicon(i.kind)}<span class="nm">${hl(nameOf(i),q)}</span></div>
+      <div class="d">${hl(descOf(i),q)}</div>
+      <div class="meta"><span class="chip ${i.tool}">${TOOL[i.tool]}</span>${q||st.kind==="overview"?`<span class="chip">${KIND[i.kind].l}</span>`:""}${i.scope==="archive"?'<span class="chip warn">保管庫</span>':""}<span>${ago(i.mtime)}に更新</span></div></a>`).join("")+`</div>`;
+  }
+  $("#list").innerHTML=h;
+  bindList();
+}
+function bindList(){
+  $("#list").querySelectorAll(".card,.tn.file").forEach(r=>r.onclick=()=>{location.hash="#/f/"+r.dataset.id});
+  $("#list").querySelectorAll(".lh .pills button").forEach(b=>b.onclick=()=>{st.view=b.dataset.v;save();renderList()});
+  $("#list").querySelectorAll(".tn.dir").forEach(d=>d.onclick=()=>{
+    const k=d.dataset.k, c=d.nextElementSibling, open=!c.classList.contains("open");
+    c.classList.toggle("open",open); d.classList.toggle("open",open);
+    if(open){treeOpen.add(k);treeClosed.delete(k)}else{treeOpen.delete(k);treeClosed.add(k)} saveTree();
+  });
+  $("#list").querySelectorAll("[data-all]").forEach(b=>b.onclick=()=>{
+    const open=b.dataset.all==="open";
+    $("#list").querySelectorAll(".tn.dir").forEach(d=>{const k=d.dataset.k;d.classList.toggle("open",open);d.nextElementSibling.classList.toggle("open",open);
+      if(open){treeOpen.add(k);treeClosed.delete(k)}else{treeOpen.delete(k);treeClosed.add(k)}});
+    saveTree();
+  });
+}
+
+/* ---------- 一覧のフォルダ表示 ---------- */
+let treeOpen=new Set(), treeClosed=new Set();
+try{const t=JSON.parse(localStorage.getItem("shelf-tree")||"{}");treeOpen=new Set(t.o||[]);treeClosed=new Set(t.c||[])}catch(e){}
+const saveTree=()=>{try{localStorage.setItem("shelf-tree",JSON.stringify({o:[...treeOpen],c:[...treeClosed]}))}catch(e){}};
+function renderTree(pool,q){
+  const root={name:"",kids:new Map(),files:[],n:0};
+  for(const i of pool){
+    const parts=i.path.split("/"); parts.pop();
+    // スキルなどはフォルダ＝1件なので、最後のフォルダ名は省く
+    if(/SKILL\.md$|automation\.toml$/.test(i.path))parts.pop();
+    let node=root; node.n++;
+    for(const part of parts){ if(!node.kids.has(part))node.kids.set(part,{name:part,kids:new Map(),files:[],n:0}); node=node.kids.get(part); node.n++; }
+    node.files.push(i);
+  }
+  const compact=n=>{for(const [k,c] of [...n.kids]){compact(c);
+      while(c.kids.size===1&&!c.files.length){const [[,g]]=[...c.kids];c.name+="/"+g.name;c.kids=g.kids;c.files=g.files}}};
+  compact(root);
+  const sel=st.sel&&byId[st.sel]?byId[st.sel].path:"";
+  let h=`<div class="tree"><div class="tools"><button class="linkbtn" data-all="open">すべて開く</button><button class="linkbtn" data-all="close">すべて閉じる</button></div>`;
+  const walk=(node,key,depth)=>{
+    for(const d of [...node.kids.values()].sort((a,b)=>a.name.localeCompare(b.name,"ja"))){
+      const k=key+"/"+d.name;
+      const open = q ? true : treeClosed.has(k) ? false : treeOpen.has(k) || depth<1 || (sel&&sel.startsWith(k.slice(1)+"/"));
+      const label=d.name.split("/").map(segName).join(" › ");
+      h+=`<div class="tn dir ${open?"open":""}" data-k="${esc(k)}" title="${esc(d.name)}" style="padding-left:${8+depth*16}px"><span class="car">▶</span><span class="fold">${svg("folder",1.8).replace("<svg",'<svg width="15" height="15"')}</span><span class="lb">${hl(label,q)}</span><span class="cnt">${d.n}</span></div><div class="tc ${open?"open":""}">`;
+      walk(d,k,depth+1);
+      h+=`</div>`;
+    }
+    for(const i of [...node.files].sort((a,b)=>nameOf(a).localeCompare(nameOf(b),"ja"))){
+      h+=`<div class="tn file ${st.sel===i.id?"on":""}" data-id="${i.id}" title="${esc(descOf(i))}" style="padding-left:${8+depth*16+14}px">${kicon(i.kind,"sm")}<span class="lb">${hl(nameOf(i),q)}</span></div>`;
+    }
+  };
+  walk(root,"",0);
+  return h+`</div>`;
+}
+
+/* ---------- 詳細 ---------- */
+function related(i){
+  const out=[];
+  for(const p of DATA.sync){
+    if(p.a===i.id&&p.b)out.push([p.b,"Codex 版",p.state]);
+    if(p.b===i.id&&p.a)out.push([p.a,"Claude 版",p.state]);
+  }
+  return out;
+}
+const readMin=i=>Math.max(1,Math.round((i.body||"").length/600));
+function renderDetail(i){
+  document.body.classList.add("detail");
+  const rel=related(i);
+  const notice = rel.length ? rel.map(([id,l,s])=> s==="same"
+      ? `<div class="notice ok">✓ <div><a data-go="${id}">${l}</a>もあり、内容はそろっています。</div></div>`
+      : `<div class="notice warn">！<div><a data-go="${id}">${l}</a>もありますが、内容に違いがあります。どちらかを更新し忘れている可能性があります。</div></div>`).join("")
+    : (i.kind==="skill"&&i.scope==="project" ? `<div class="notice info">ⓘ <div>このスキルは ${TOOL[i.tool]} 用だけにあります。</div></div>` : "");
+  const issues=(DATA.suggest||[]).flatMap(x=>x.entries.filter(e=>(e.ids||[]).includes(i.id)).map(e=>({x,e})));
+  const issueBox = issues.length ? `<div class="notice warn">！<div>改善の提案が ${issues.length}件 あります：${issues.map(({x})=>esc(FRIENDLY[x.rule]?.t||x.title)).filter((v,k,a)=>a.indexOf(v)===k).join("、")}　<a id="toOpt">提案を見る</a></div></div>` : "";
+  const body = !i.body ? `<p class="sec-sub">追加パックの中身はここには収録していません。</p>`
+    : i.fmt==="md" ? `<div class="md">${md(i.body)}</div>` : `<pre class="raw">${esc(i.body)}</pre>`;
+  const fmRows=Object.entries(i.fm||{});
+  $("#main").innerHTML=`<div class="doc">
+    <button class="btn back" onclick="history.back()">← 一覧へ戻る</button>
+    <div class="eyebrow">${kicon(i.kind,"sm")}<span>${KIND[i.kind].l}</span><span class="chip ${i.tool}">${TOOL[i.tool]}</span>${i.scope==="archive"?'<span class="chip warn">保管庫</span>':""}</div>
+    <h1 class="title">${esc(nameOf(i))}</h1>
+    <p class="lede">${esc(descOf(i))}</p>
+    <div class="facts">
+      <div><b>使うAI</b><span>${TOOL[i.tool]}</span></div>
+      <div><b>置き場所</b><span>${esc(placeOf(i)||SCOPE[i.scope])}</span></div>
+      <div><b>最終更新</b><span>${ago(i.mtime)}</span></div>
+      <div><b>分量</b><span>${i.body?`約${readMin(i)}分で読める`:"—"}</span></div>
+    </div>
+    ${issueBox}${notice}
+    ${i.body?`<div class="reader-h">中身</div><div class="reader">${body}</div>`:body}
+    <details class="tech"><summary>詳しい情報（エンジニア向け）</summary><div class="in">
+      <dl class="kv">
+        <dt>ファイルの場所</dt><dd><code>${esc(i.abs)}</code></dd>
+        <dt>ファイル名</dt><dd>${esc(i.name)}</dd>
+        <dt>行数 / サイズ</dt><dd>${i.lines.toLocaleString()}行 / ${(i.size/1024).toFixed(1)} KB</dd>
+        <dt>更新日</dt><dd>${fmtDate(i.mtime)}</dd>
+        ${i.plugin?`<dt>追加パック</dt><dd>${esc(i.plugin)}</dd>`:""}
+        ${fmRows.map(([k,v])=>`<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("")}
+      </dl>
+      <div style="display:flex;gap:8px;margin-top:12px"><button class="btn" id="cp">場所をコピー</button><a class="btn" href="${esc(i.uri||("file://"+encodeURI(i.abs)))}" target="_blank">ファイルを開く</a></div>
+    </div></details>
+  </div>`;
+  $("#cp").onclick=e=>{navigator.clipboard?.writeText(i.abs);e.target.textContent="コピーしました";setTimeout(()=>e.target.textContent="場所をコピー",1200)};
+  $("#main").querySelectorAll("[data-go]").forEach(a=>a.onclick=()=>location.hash="#/f/"+a.dataset.go);
+  const t=$("#toOpt"); if(t)t.onclick=()=>location.hash="#/opt";
+  $("#main").scrollTop=0;
+}
+
+/* ---------- ホーム ---------- */
+let showAllInstr=false;
+function renderOverview(){
+  document.body.classList.add("detail");
+  const pool=DATA.items.filter(visible);
+  const instr=pool.filter(i=>i.kind==="instructions"&&i.scope!=="archive").sort((a,b)=>b.lines-a.lines);
+  const maxL=Math.max(1,...instr.map(i=>i.lines));
+  const sync=DATA.sync, sc=s=>sync.filter(p=>p.state===s).length;
+  const g=pool.find(i=>i.kind==="instructions"&&i.scope==="global"&&i.tool==="claude"), gx=pool.find(i=>i.kind==="instructions"&&i.scope==="global"&&i.tool==="codex");
+  const rootRules=pool.filter(i=>i.kind==="instructions"&&i.loc&&ROOTS.includes(i.loc[1])&&i.tool==="claude");
+  const projCount=instr.filter(i=>i.scope==="project"&&!(i.loc&&ROOTS.includes(i.loc[1]))).length;
+  const total=issueCount(), urgent=urgentCount();
+  const unsynced=[...sync].filter(p=>p.state!=="same").sort((a,b)=>(a.state==="diff"?0:1)-(b.state==="diff"?0:1));
+  const glabel={skill:"スキル",instructions:"ルール",agent:"専門スタッフ"};
+  const stLabel={diff:["少し違う","warn"],"claude-only":["Claude だけ","bad"],"codex-only":["Codex だけ","bad"]};
+  $("#main").innerHTML=`<div class="doc ov">
+    <div class="eyebrow">${DATA.generated.replace(/^(\d+)-(\d+)-(\d+)/,(_,y,m,d)=>`${y}年${+m}月${+d}日`)} 時点</div>
+    <h1 class="title">AIの道具箱を見渡す</h1>
+    <p class="lede">Claude と Codex に持たせている「基本ルール」「スキル」「自動タスク」「記憶メモ」などを、ひとつの棚にまとめました。気になるものをクリックすると中身が読めます。</p>
+
+    <div class="health">
+      <div class="hn"><div><b class="${urgent?"bad":""}">${urgent}</b>急ぎ</div><div><b>${total}</b>改善ポイント</div></div>
+      <div class="htxt"><strong>${urgent?"いくつか整えておきたい点があります":"大きな問題は見つかりませんでした"}</strong><span>リンク切れ・Claude と Codex の内容のずれ・置き場所の重複などを自動で点検しました。</span></div>
+      <button class="pbtn" id="optBtn">${svg("wand").replace("<svg",'<svg width="15" height="15"')}改善の提案を見る</button>
+    </div>
+
+    <h2 class="sec">どこに何があるか</h2>
+    <p class="sec-sub">左から右へ、フォルダの中身をたどれます。箱を押すと、そのフォルダの中身が左の一覧に出ます。</p>
+    <div class="dg-wrap">
+      <div class="dg-bar">
+        <div class="kleg" style="margin:0">${KORDER.filter(k=>k!=="plugin").map(k=>`<span><i style="background:var(--k-${k})"></i>${KIND[k].l}</span>`).join("")}<span><i class="rd c" style="border-radius:50%"></i>Claudeのルールあり</span><span><i class="rd x" style="border-radius:50%"></i>Codexのルールあり</span></div>
+        <span class="dg-tools"><button class="linkbtn" data-dg="open">すべて開く</button><button class="linkbtn" data-dg="close">閉じる</button><label class="switch"><input type="checkbox" id="dgCfg" ${dgShowCfg?"checked":""}>設定だけのフォルダも</label></span>
+      </div>
+      <div class="dg-scroll"><div class="dg" id="dg">${renderDiagram(pool)}</div></div>
+    </div>
+
+    <h2 class="sec">しまってあるもの</h2>
+    <p class="sec-sub">全部で ${pool.length.toLocaleString()} 件。種類を押すと一覧が開きます。</p>
+    <div class="kgrid">${KORDER.map(k=>{const a=pool.filter(i=>i.kind===k);const c=a.filter(i=>i.tool==="claude").length,x=a.length-c;
+      return `<div class="kcard" data-k="${k}">${kicon(k,"lg")}<div><div class="kn">${a.length}</div><div class="kl">${KIND[k].l}</div><div class="kd">${KIND[k].d}</div>
+      <div class="ks">${c?`<span class="chip claude">Claude ${c}</span>`:""}${x?`<span class="chip codex">Codex ${x}</span>`:""}</div></div></div>`}).join("")}</div>
+
+    <h2 class="sec">ルールが読まれる順番</h2>
+    <p class="sec-sub">AIは作業を始めるとき、広い範囲のルールから順に重ねて読みます。後から読むほど、その場所専用の細かいルールです。</p>
+    <div class="steps">
+      <div class="step"><div class="no">1</div><b>全体共通のルール</b><span>どの作業でも必ず読まれる</span><div class="go">${g?`<span class="lnk" data-go="${g.id}">Claude 版</span>`:""}${g&&gx?"　":""}${gx?`<span class="lnk" data-go="${gx.id}">Codex 版</span>`:""}</div></div>
+      <div class="step"><div class="no">2</div><b>作業フォルダ共通のルール</b><span>${ROOTS.length?esc(ROOTS.join("・"))+" の中で作業するとき":"作業フォルダを設定すると表示されます"}</span><div class="go">${rootRules.map(r=>`<span class="lnk" data-go="${r.id}">${esc(r.loc[1])}</span>`).join("　")}</div></div>
+      <div class="step"><div class="no">3</div><b>プロジェクトごとのルール</b><span>各プロジェクトを開いたとき</span><div class="go"><span class="lnk" data-k="instructions">${projCount}件を見る</span></div></div>
+    </div>
+
+    <h2 class="sec">ルールの長さ</h2>
+    <p class="sec-sub">ルールは毎回まるごと読まれるので、短く保つほどAIの動きが軽くなります。</p>
+    <div class="rows">${(showAllInstr?instr:instr.slice(0,8)).map(i=>`<div class="rowi" data-go="${i.id}"><span class="chip ${i.tool}">${TOOL[i.tool]}</span><span class="grow">${esc(placeOf(i))}</span><div class="bar"><i style="width:${(i.lines/maxL*100).toFixed(1)}%;background:var(--${i.tool})"></i></div><span class="sub">${i.lines}行</span></div>`).join("")}</div>
+    ${instr.length>8?`<button class="btn more" id="moreInstr">${showAllInstr?"少なく表示":`残り${instr.length-8}件も表示`}</button>`:""}
+
+    <h2 class="sec">Claude と Codex の足並み</h2>
+    <p class="sec-sub">同じスキルやルールを両方のAIに持たせている場合、内容がそろっているかを比べました。</p>
+    <div class="syncsum">
+      <div style="background:var(--ok-bg)"><b style="color:var(--ok)">${sc("same")}</b><span>そろっている</span></div>
+      <div style="background:var(--warn-bg)"><b style="color:var(--warn)">${sc("diff")}</b><span>少し違う</span></div>
+      <div style="background:var(--bad-bg)"><b style="color:var(--bad)">${sc("claude-only")+sc("codex-only")}</b><span>片方にしかない</span></div>
+    </div>
+    <div class="rows">${unsynced.map(p=>`<div class="rowi" data-go="${p.a||p.b}"><span class="chip ${stLabel[p.state][1]}">${stLabel[p.state][0]}</span><span class="grow">${esc(stripRoot(p.label))}</span><span class="sub">${glabel[p.group]}</span></div>`).join("")}</div>
+  </div>`;
+  $("#main").querySelectorAll("[data-go]").forEach(a=>a.onclick=()=>location.hash="#/f/"+a.dataset.go);
+  $("#main").querySelectorAll("[data-k]").forEach(a=>a.onclick=()=>{st.kind=a.dataset.k;save();if(location.hash)location.hash="";else go()});
+  $("#optBtn").onclick=()=>location.hash="#/opt";
+  const m=$("#moreInstr"); if(m)m.onclick=()=>{showAllInstr=!showAllInstr;renderOverview()};
+  bindDiagram();
+}
+
+/* ---------- フォルダ構成図 ---------- */
+function kindBar(arr){
+  const n=arr.length||1, c={}; arr.forEach(i=>c[i.kind]=(c[i.kind]||0)+1);
+  return `<div class="sbar">${KORDER.filter(k=>c[k]).map(k=>`<i title="${KIND[k].l} ${c[k]}" style="width:${c[k]/n*100}%;background:var(--k-${k})"></i>`).join("")}</div>`;
+}
+let dgShowCfg=false, dgOpen=null;
+try{const o=JSON.parse(localStorage.getItem("shelf-dg")||"null");if(o)dgOpen=new Set(o)}catch(e){}
+const saveDg=()=>{try{localStorage.setItem("shelf-dg",JSON.stringify([...dgOpen]))}catch(e){}};
+const DG_NAME={"~/.claude":"Claude の共通棚","~/.codex":"Codex の共通棚","その他":"その他のプロジェクト"};
+const DG_SUB={"~/.claude":"どこで作業しても使う","~/.codex":"どこで作業しても使う","その他":"最近開いたフォルダ"};
+ROOTS.forEach(r=>DG_SUB[r]="作業フォルダ");
+if(DATA.archive){DG_NAME[DATA.archive]="保管庫";DG_SUB[DATA.archive]="使わなくなったもの"}
+function dgBuild(pool){
+  const root={key:"",name:"すべて",kids:new Map(),own:[],all:[],group:"root",prefix:""};
+  const node=(parent,name,group,prefix)=>{if(!parent.kids.has(name))parent.kids.set(name,{key:parent.key+"/"+name,name,kids:new Map(),own:[],all:[],group,prefix});return parent.kids.get(name)};
+  for(const i of pool){
+    if(!i.loc)continue;
+    const [g,label,prefix]=i.loc; let path;
+    if(g==="claude")path=[["~/.claude","~/.claude/"],[label,prefix]];
+    else if(g==="codex")path=[["~/.codex","~/.codex/"],[label,prefix]];
+    else if(g==="archive")path=[[DATA.archive||"保管庫",prefix]];
+    else{const parts=label.split("/");path=parts.map((p,k)=>[p,parts.slice(0,k+1).join("/")+"/"]);}
+    let n=root; n.all.push(i);
+    for(const [name,pf] of path){n=node(n,name,g,pf);n.all.push(i)}
+    n.own.push(i);
+  }
+  const compact=n=>{for(const c of n.kids.values()){
+      while(c.kids.size===1&&!c.own.length&&c.group==="workspace"){const gg=[...c.kids.values()][0];c.name+="/"+gg.name;c.key=gg.key;c.kids=gg.kids;c.own=gg.own;c.prefix=gg.prefix}
+      compact(c)}};
+  compact(root);
+  const order=["~/.claude","~/.codex",...ROOTS,"その他",DATA.archive||"\u0000"];
+  const sortKids=n=>{n.list=[...n.kids.values()].filter(c=>dgShowCfg||!c.all.every(i=>i.kind==="config"))
+      .sort((a,b)=>{if(n!==root)return a.name.localeCompare(b.name,"ja");const r=x=>{const k=order.findIndex(o=>x.name===o||x.name.startsWith(o+"/"));return k<0?9:k};return r(a)-r(b)});
+    n.list.forEach(sortKids)};
+  sortKids(root);
+  return root;
+}
+function dgLabel(n){
+  if(DG_NAME[n.name])return DG_NAME[n.name];
+  if(n.group==="claude"||n.group==="codex")return AREA[n.name]||n.name;
+  return n.name.split("/").join(" › ");
+}
+function renderDiagram(pool){
+  const root=dgBuild(pool);
+  if(!dgOpen)dgOpen=new Set(["",...ROOTS.slice(0,1).map(r=>"/"+r)]);
+  const W=164,RW=120,H=44,GX=26,GAP=8,ROW=H+GAP;
+  const X=d=>d===0?0:RW+GX+(d-1)*(W+GX), NW=d=>d===0?RW:W;
+  const nodes=[], edges=[]; let row=0, maxDepth=0;
+  const lay=(n,d)=>{
+    maxDepth=Math.max(maxDepth,d);
+    const open=dgOpen.has(n.key)&&n.list.length;
+    let y;
+    if(open){const ys=n.list.map(c=>lay(c,d+1));y=(ys[0]+ys[ys.length-1])/2;ys.forEach(cy=>edges.push([d,y,cy]))}
+    else{y=row*ROW;row++}
+    nodes.push({n,d,y,open});
+    return y;
+  };
+  lay(root,0);
+  const width=X(maxDepth)+NW(maxDepth)+16, height=row*ROW;
+  const path=([d,y1,y2])=>{const x1=X(d)+NW(d)+12,x2=X(d+1),ym1=y1+H/2,ym2=y2+H/2,mx=(x1+x2)/2;return `<path d="M${x1} ${ym1} C${mx} ${ym1} ${mx} ${ym2} ${x2} ${ym2}"/>`};
+  const html=nodes.map(({n,d,y,open})=>{
+    const has=t=>n.own.some(i=>i.kind==="instructions"&&i.tool===t);
+    const showRd=n.group==="workspace"&&n.own.length;
+    const sub=d===0?"道具の全体":DG_SUB[n.name]||"";
+    return `<div class="dn g-${n.group}${st.q&&n.prefix&&st.q===n.prefix?" on":""}" data-q="${esc(n.prefix)}" style="left:${X(d)}px;top:${y}px;width:${NW(d)}px;height:${H}px;${n.list.length?"padding-right:16px":""}" title="${esc(dgLabel(n))}（${n.all.length}件）">
+      <div class="dn-t">${showRd?`<i class="rd ${has("claude")?"c":""}" title="Claudeのルール${has("claude")?"あり":"なし"}"></i><i class="rd ${has("codex")?"x":""}" title="Codexのルール${has("codex")?"あり":"なし"}"></i>`:""}<span class="dn-n">${esc(dgLabel(n))}</span><span class="dn-c">${n.all.length}</span></div>
+      ${sub?`<div class="dn-s">${esc(sub)}</div>`:kindBar(n.all)}
+      ${n.list.length?`<button class="dn-tg" data-tg="${esc(n.key)}" title="${open?"閉じる":"開く"}">${open?"−":"+"+n.list.length}</button>`:""}
+    </div>`}).join("");
+  return `<svg class="dg-lines" width="${width}" height="${height}">${edges.map(path).join("")}</svg>${html}<div style="width:${width}px;height:${height}px"></div>`;
+}
+function bindDiagram(){
+  const rerender=()=>{$("#dg").innerHTML=renderDiagram(DATA.items.filter(visible));bindDiagram()};
+  $("#main").querySelectorAll(".dn").forEach(d=>d.onclick=e=>{
+    if(e.target.closest(".dn-tg"))return;
+    st.q=d.dataset.q; $("#q").value=st.q; st.view="tree"; save(); renderList(); $("#list").scrollTop=0;
+    $("#main").querySelectorAll(".dn").forEach(x=>x.classList.toggle("on",x===d&&!!st.q));
+    if(innerWidth<=800)document.body.classList.remove("detail");
+  });
+  $("#main").querySelectorAll(".dn-tg").forEach(b=>b.onclick=()=>{const k=b.dataset.tg;dgOpen.has(k)?dgOpen.delete(k):dgOpen.add(k);saveDg();rerender()});
+  $("#main").querySelectorAll("[data-dg]").forEach(b=>b.onclick=()=>{
+    if(b.dataset.dg==="close")dgOpen=new Set([""]);
+    else{dgOpen=new Set();const walk=n=>{dgOpen.add(n.key);n.list.forEach(walk)};walk(dgBuild(DATA.items.filter(visible)))}
+    saveDg();rerender()});
+  const c=$("#dgCfg"); if(c)c.onchange=()=>{dgShowCfg=c.checked;rerender()};
+}
+
+/* ---------- 改善の提案 ---------- */
+const PRI={high:["急ぎ","bad"],mid:["おすすめ","warn"],low:["余裕があれば",""]};
+const FRIENDLY={
+  skill_drift:{t:"Claude 版と Codex 版で中身が食い違っているスキル",w:"同じスキルを両方のAIに持たせていますが、片方だけ書き換えられています。",y:"AIによって仕事のやり方が変わってしまいます。",h:"違いを確認して、正しい方の内容をもう片方にも反映します。"},
+  one_side:{t:"置き場所がだぶっているスキル",w:"同じスキルが本来の場所とは別のところにも残っています。",y:"古い方が使われると、意図しない動きになります。",h:"本来の場所だけ残し、もう一方は保管庫へ移します。"},
+  broken:{t:"存在しないファイルを指している箇所",w:"ルールやスキルの中に、もう無いファイルへの案内が残っています。",y:"AIが手順の途中で迷い、作業が止まる原因になります。",h:"正しいファイルの場所に書き直します。"},
+  instr_dup:{t:"ほぼ同じルールを2か所で管理している",w:"Claude 用と Codex 用のルールがほぼ同じ内容で、別々に更新されています。",y:"片方だけ直して、もう片方が古いままになりがちです。",h:"共通部分は Claude 用を正とし、Codex 用には違いだけを書きます。"},
+  no_agents:{t:"Codex 用のルールがないプロジェクト",w:"Codex で使っているのに、Codex 向けのルールが置かれていません。",y:"Codex がこのプロジェクトの約束ごとを知らないまま作業します。",h:"Claude 用のルールを元に Codex 用を作ります。"},
+  proj_skill:{t:"特定のプロジェクト専用に見えるスキル",w:"一つのプロジェクトでしか使わない内容なのに、全体の棚に置かれています。",y:"関係ない作業でも候補に出て、AIが選び間違えることがあります。",h:"そのプロジェクトのフォルダへ移します。"},
+  index:{t:"ルール内のスキル一覧と実物のずれ",w:"作業フォルダのルールに書いてあるスキル一覧に、実際にあるスキルが載っていません。",y:"一覧はAIがスキルを選ぶ手がかりなので、漏れがあると使われにくくなります。",h:"一覧に足りないスキルを書き足します。"},
+  dup_name:{t:"同じ名前のスキルが複数ある",w:"同じ名前のスキルが別々の場所にあります。",y:"どちらが使われるかが場所によって変わります。",h:"1か所にまとめます。"},
+  size:{t:"長くなってきたルール",w:"毎回読まれるルールが100行を超えています。",y:"長いほどAIの準備に時間がかかり、大事な指示が埋もれます。",h:"手順や資料の部分をスキルや参考資料に切り出します。"},
+  nodesc:{t:"説明文がないスキル・専門スタッフ",w:"「何をするものか」の説明が書かれていません。",y:"AIが自動で選ぶときの手がかりがなく、使われにくくなります。",h:"1〜2行の説明文を書き足します。"},
+  unused:{t:"しばらく使われていないかもしれないスキル",w:"長く更新がなく、どこからも呼ばれていません。",y:"使わないスキルが多いと、AIの選択肢がごちゃつきます。",h:"不要なら保管庫へ移します。"},
+  memory:{t:"記憶メモの重複・目次もれ",w:"記憶メモが目次に載っていない、または同じメモが複数あります。",y:"目次にないメモはAIに思い出されません。",h:"目次に追加するか、共通の参考資料にまとめます。"},
+  perms:{t:"許可リストがふくらんでいるフォルダ",w:"AIに許可している操作の一覧が長くなっています。",y:"一度きりの許可が溜まると、何を許しているのか見えにくくなります。",h:"今は使わない許可を削ります。"},
+};
+let optSel=null, optPri="all", optOpen=new Set();
+function renderOpt(){
+  document.body.classList.add("detail");
+  const S=DATA.suggest||[];
+  if(!optSel){optSel=new Set(S.filter(x=>x.pri==="high").map(x=>x.id));}
+  const n=p=>S.filter(x=>p==="all"||x.pri===p).reduce((a,x)=>a+x.entries.length,0);
+  const list=S.filter(x=>optPri==="all"||x.pri===optPri);
+  const df=lines=>lines.map(l=>`<span class="${l[0]==="+"?"a":l[0]==="-"?"d":""}">${esc(l.length>220?l.slice(0,220)+"…":l)}</span>`).join("\n");
+  const label=e=>esc(stripRoot(e.label));
+  $("#main").innerHTML=`<div class="doc opt">
+    <button class="btn back" onclick="history.back()">← 戻る</button>
+    <div class="eyebrow"><span class="lnk" id="toOv">ホーム</span> › 改善の提案</div>
+    <h1 class="title">改善の提案</h1>
+    <p class="lede">道具箱を自動で点検し、整えておくとよいポイントを ${n("all")}件 見つけました。どれも提案なので、やるかどうかは選べます。気になるものにチェックを入れて、下のボタンでまとめて依頼できます。</p>
+    <div class="filters">${["all","high","mid","low"].map(p=>`<button data-p="${p}" class="${optPri===p?"on":""}">${p==="all"?"すべて":PRI[p][0]}　${n(p)}</button>`).join("")}</div>
+    ${list.map(x=>{const f=FRIENDLY[x.rule]||{t:x.title,w:x.reason};return `<div class="scard ${optOpen.has(x.id)?"open":""}" data-id="${x.id}">
+      <div class="sh"><input class="cb" type="checkbox" data-sel="${x.id}" ${optSel.has(x.id)?"checked":""} title="依頼に含める">
+        <div style="min-width:0;flex:1"><div class="stt">${esc(f.t)}</div><div class="sdesc">${esc(f.w)}</div>
+        <div class="smeta"><span class="chip ${PRI[x.pri][1]}">${PRI[x.pri][0]}</span><span class="chip">${x.entries.length}件</span></div></div>
+        <svg class="chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></div>
+      <div class="sbody">
+        ${f.y?`<div class="why"><div><b>放っておくと</b>${esc(f.y)}</div><div><b>どうすればいい？</b>${esc(f.h)}</div></div>`:""}
+        <div class="ents">${x.entries.map(e=>`<div class="ent">
+          <div class="el">${e.ids&&e.ids.length?`<span class="lnk" data-go="${e.ids[0]}">${label(e)}</span>`:label(e)}</div>
+          <div class="ed">${esc(e.detail)}</div>
+          ${(e.diff&&e.diff.length)||e.cmd?`<details><summary>技術的な詳細</summary>
+            ${e.diff&&e.diff.length?`<pre class="df">${df(e.diff)}</pre>`:""}
+            ${e.cmd?`<div class="cmd"><code>${esc(e.cmd)}</code><button class="btn" data-cp="${esc(e.cmd)}">コピー</button></div>`:""}</details>`:""}
+        </div>`).join("")}</div>
+        ${x.note?`<p class="snote">補足：${esc(x.note)}</p>`:""}
+      </div>
+    </div>`}).join("")}
+    <div class="dock"><span id="selInfo"></span><button class="pbtn" id="cpPrompt">選んだ提案をまとめてコピー</button></div>
+    <p class="sec-sub" style="margin-top:14px">コピーした文章を Claude Code に貼り付けると、内容を確認したうえで対応してくれます（実行前に必ず確認を求める指示入り）。直したあとは <span class="codeline">python3 build.py</span> で点検し直せます。</p>
+  </div>`;
+  const info=()=>{const k=S.filter(x=>optSel.has(x.id));$("#selInfo").textContent=k.length?`${k.reduce((a,x)=>a+x.entries.length,0)}件の提案を選択中`:"提案にチェックを入れてください";$("#cpPrompt").disabled=!k.length};
+  info();
+  $("#main").scrollTop=0;
+  $("#main").querySelectorAll(".sh").forEach(h=>h.onclick=e=>{if(e.target.matches("input"))return;const c=h.parentElement;c.classList.toggle("open");c.classList.contains("open")?optOpen.add(c.dataset.id):optOpen.delete(c.dataset.id)});
+  $("#main").querySelectorAll("[data-sel]").forEach(c=>c.onchange=()=>{c.checked?optSel.add(c.dataset.sel):optSel.delete(c.dataset.sel);info()});
+  $("#main").querySelectorAll("[data-p]").forEach(b=>b.onclick=()=>{optPri=b.dataset.p;renderOpt()});
+  $("#main").querySelectorAll("[data-go]").forEach(a=>a.onclick=()=>location.hash="#/f/"+a.dataset.go);
+  $("#main").querySelectorAll("[data-cp]").forEach(b=>b.onclick=()=>{navigator.clipboard?.writeText(b.dataset.cp);b.textContent="コピー済";setTimeout(()=>b.textContent="コピー",1200)});
+  $("#toOv").onclick=()=>{st.kind="overview";save();location.hash=""};
+  $("#cpPrompt").onclick=e=>{navigator.clipboard?.writeText(buildPrompt(S.filter(x=>optSel.has(x.id))));e.target.textContent="コピーしました";setTimeout(()=>e.target.textContent="選んだ提案をまとめてコピー",1500)};
+}
+function buildPrompt(sel){
+  const L=[`Agent Shelf（${DATA.generated} 診断）の改善提案のうち、以下を対応したいです。`,
+    "各項目について現状を確認し、変更内容（移動・上書き・追記の差分）を先に提示して、私の承認後に実行してください。削除はせずアーカイブへ退避してください。",""];
+  sel.forEach((x,n)=>{
+    const f=FRIENDLY[x.rule];
+    L.push(`## ${n+1}. [${PRI[x.pri][0]}] ${f?f.t:x.title}`, x.reason);
+    x.entries.forEach(e=>{
+      const paths=(e.ids||[]).map(id=>byId[id]&&byId[id].abs).filter(Boolean);
+      L.push(`- ${e.label}: ${e.detail}`+(paths.length?`\n  対象: ${paths.join(" / ")}`:"")+(e.cmd?`\n  参考コマンド: ${e.cmd}`:""));
+    });
+    if(x.note)L.push(`補足: ${x.note}`);
+    L.push("");
+  });
+  return L.join("\n");
+}
+
+function renderKindIntro(){
+  document.body.classList.remove("detail");
+  const k=st.kind, pool=DATA.items.filter(visible).filter(i=>i.kind===k);
+  $("#main").innerHTML=`<div class="doc"><div class="eyebrow">${kicon(k,"sm")}${KIND[k].l}</div>
+  <h1 class="title">${KIND[k].l}　${pool.length}件</h1>
+  <p class="lede">${KIND[k].d}。左の一覧から選ぶと中身が読めます。</p>
+  <div class="ks" style="display:flex;gap:8px"><span class="chip claude">Claude ${pool.filter(i=>i.tool==="claude").length}件</span><span class="chip codex">Codex ${pool.filter(i=>i.tool==="codex").length}件</span></div></div>`;
+}
+
+/* ---------- 画面の切り替え ---------- */
+function go(){
+  renderNav();
+  const m=location.hash.match(/^#\/f\/(\w+)/);
+  st.sel=m&&byId[m[1]]?m[1]:null;
+  renderList();
+  if(location.hash==="#/opt")renderOpt();
+  else if(st.sel)renderDetail(byId[st.sel]);
+  else if(st.kind==="overview")renderOverview();
+  else renderKindIntro();
+  document.querySelectorAll("#toolSeg button").forEach(b=>b.classList.toggle("on",b.dataset.v===st.tool));
+  $("#arc").checked=st.arc;
+}
+window.addEventListener("hashchange",go);
+$("#q").addEventListener("input",e=>{st.q=e.target.value;renderList()});
+document.querySelectorAll("#toolSeg button").forEach(b=>b.onclick=()=>{st.tool=b.dataset.v;save();go()});
+$("#arc").onchange=e=>{st.arc=e.target.checked;save();go()};
+document.addEventListener("keydown",e=>{
+  if(e.key==="/"&&document.activeElement!==$("#q")){e.preventDefault();$("#q").focus()}
+  if(e.key==="Escape"){ if(st.q){st.q="";$("#q").value="";renderList()} else if(st.sel){location.hash=""} }
+});
+$("#theme").onclick=()=>{const r=document.documentElement;r.dataset.theme=(r.dataset.theme||"light")==="dark"?"light":"dark";try{localStorage.setItem("shelf-theme-v2",r.dataset.theme)}catch(e){}};
+try{const t=localStorage.getItem("shelf-theme-v2");if(t)document.documentElement.dataset.theme=t}catch(e){}
+go();
+</script>
+</body>
+</html>
