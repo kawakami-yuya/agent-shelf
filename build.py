@@ -4,6 +4,7 @@
 使い方:
     python3 build.py           # 生成（初回は作業フォルダを聞かれます）
     python3 build.py --setup   # 作業フォルダの設定をやり直す
+    python3 build.py --serve   # 生成してブラウザで開き、画面の「最新にする」ボタンで作り直せるようにする
 
 読み取りはすべてこのPCの中だけで行い、外部には一切送信しません。
 APIキーやトークンらしき値は生成時に「••••••••」へ置き換えます。
@@ -16,7 +17,10 @@ import hashlib
 import json
 import os
 import re
+import secrets
 import sys
+import threading
+import webbrowser
 from datetime import datetime
 from pathlib import Path
 
@@ -58,7 +62,7 @@ def ask_path(prompt: str):
     return Path(os.path.expanduser(s)) if s else None
 
 
-def load_config(force_setup=False):
+def load_config(force_setup=False, interactive=True):
     global WORKSPACES, ARCHIVE, EXCLUDE
     cfg = {}
     if CONFIG.exists() and not force_setup:
@@ -66,7 +70,7 @@ def load_config(force_setup=False):
             cfg = json.loads(read(CONFIG))
         except Exception:
             print("shelf_config.json が読めなかったので、設定なしで続けます。")
-    elif sys.stdin.isatty():
+    elif interactive and sys.stdin.isatty():
         print("\n=== Agent Shelf の初期設定 ===")
         print("Claude / Codex で作業しているフォルダを教えてください（例: 仕事用フォルダ）。")
         print("フォルダをこのウィンドウにドラッグ&ドロップして Enter。複数あれば続けて入力、終わったら空のまま Enter。")
@@ -809,8 +813,10 @@ def suggestions(pairs):
     return S
 
 
-def main():
-    load_config(force_setup="--setup" in sys.argv)
+def build(interactive=True, force_setup=False):
+    """index.html を作り直して、件数などの要約を返す。"""
+    load_config(force_setup=force_setup, interactive=interactive)
+    items.clear()
     collect()
     pairs = sync_pairs()
     data = {
@@ -831,9 +837,108 @@ def main():
     kinds = {}
     for v in items.values():
         kinds[v["kind"]] = kinds.get(v["kind"], 0) + 1
+    issues = sum(len(x["entries"]) for x in data["suggest"])
     print(f"できました: {OUT}  （{len(items)}件・{OUT.stat().st_size/1024:.0f} KB）")
-    print("  改善ポイント: " + str(sum(len(x["entries"]) for x in data["suggest"])) + "件")
+    print(f"  改善ポイント: {issues}件")
     print("  " + ", ".join(f"{k}={n}" for k, n in sorted(kinds.items())))
+    return {"generated": data["generated"], "count": len(items), "issues": issues}
+
+
+# ---------------------------------------------------------------- 画面から作り直すための小さなサーバー
+# このPCの中（127.0.0.1）だけで待ち受けます。外からはつながりません。
+# 作り直しの依頼には、起動のたびに作る合言葉（トークン）を付けないと応じません。
+PORT = 8765
+
+
+def ping(port: int) -> bool:
+    import urllib.request
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/ping", timeout=1) as r:
+            return json.loads(r.read().decode()).get("app") == "agent-shelf"
+    except Exception:
+        return False
+
+
+def serve():
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+    token = secrets.token_urlsafe(24)
+    lock = threading.Lock()
+
+    class Handler(BaseHTTPRequestHandler):
+        def log_message(self, *a):
+            pass
+
+        def host_ok(self):
+            host = (self.headers.get("Host") or "").split(":")[0]
+            return host in ("127.0.0.1", "localhost")
+
+        def send(self, code, body: bytes, ctype):
+            self.send_response(code)
+            self.send_header("Content-Type", ctype)
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            self.wfile.write(body)
+
+        def send_json(self, code, obj):
+            self.send(code, json.dumps(obj, ensure_ascii=False).encode(), "application/json; charset=utf-8")
+
+        def do_GET(self):
+            if not self.host_ok():
+                return self.send_json(403, {"error": "forbidden"})
+            path = self.path.split("?")[0]
+            if path == "/api/ping":
+                return self.send_json(200, {"app": "agent-shelf"})
+            if path in ("/", "/index.html"):
+                html = read(OUT).replace("/*__SERVE__*/null", json.dumps({"token": token}), 1)
+                return self.send(200, html.encode("utf-8"), "text/html; charset=utf-8")
+            self.send_json(404, {"error": "not found"})
+
+        def do_POST(self):
+            if not self.host_ok() or self.path != "/api/rebuild":
+                return self.send_json(404, {"error": "not found"})
+            if not secrets.compare_digest(self.headers.get("X-Shelf-Token", ""), token):
+                return self.send_json(403, {"error": "forbidden"})
+            if not lock.acquire(blocking=False):
+                return self.send_json(409, {"error": "busy"})
+            try:
+                print("\n画面から「最新にする」が押されたので、作り直します…")
+                self.send_json(200, {"ok": True, **build(interactive=False)})
+            except Exception as e:
+                print(f"作り直しに失敗しました: {e}")
+                self.send_json(500, {"error": str(e)})
+            finally:
+                lock.release()
+
+    try:
+        httpd = ThreadingHTTPServer(("127.0.0.1", PORT), Handler)
+    except OSError:
+        httpd = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    url = f"http://127.0.0.1:{httpd.server_address[1]}/"
+    print(f"\nブラウザで開きます: {url}")
+    print("画面右上の「最新にする」で、いつでも作り直せます。")
+    print("このウィンドウを閉じると「最新にする」は使えなくなります（ページの閲覧はそのままできます）。")
+    if "--no-open" not in sys.argv:
+        webbrowser.open(url)
+    try:
+        httpd.serve_forever()
+    except KeyboardInterrupt:
+        print("\n終了しました。")
+    finally:
+        httpd.server_close()
+
+
+def main():
+    if "--serve" in sys.argv and ping(PORT):
+        # すでに開いている Agent Shelf があれば、そちらを開くだけにする
+        print("すでに起動しているので、そのページを開きます。画面右上の「最新にする」で作り直せます。")
+        webbrowser.open(f"http://127.0.0.1:{PORT}/")
+        return 0
+    build(force_setup="--setup" in sys.argv)
+    if "--serve" in sys.argv:
+        serve()
+    return 0
 
 
 if __name__ == "__main__":

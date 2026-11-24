@@ -55,6 +55,15 @@ header{grid-column:1/-1;display:flex;align-items:center;gap:18px;padding:0 22px;
 .switch input:checked{background:var(--ink)}
 .switch input:checked::after{left:14px}
 .iconbtn{width:34px;height:34px;border-radius:50%;border:1px solid var(--line);background:var(--panel);cursor:pointer;color:var(--ink-2);display:grid;place-items:center}
+.refresh{height:34px;padding:0 14px 0 11px;border-radius:999px;border:1px solid var(--line);background:var(--panel);cursor:pointer;color:var(--ink);display:inline-flex;align-items:center;gap:7px;font-size:13px;white-space:nowrap}
+.refresh:hover{background:var(--hover)}
+.refresh[disabled]{cursor:progress;color:var(--ink-3)}
+.refresh[disabled] svg{animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.toast{position:fixed;right:22px;top:76px;z-index:50;max-width:380px;padding:12px 16px;border-radius:12px;background:var(--panel);border:1px solid var(--line-2);box-shadow:var(--shadow);font-size:13px;line-height:1.7;color:var(--ink);opacity:0;transform:translateY(-6px);transition:opacity .2s,transform .2s;pointer-events:none}
+.toast.show{opacity:1;transform:none;pointer-events:auto}
+.toast.bad{border-color:var(--bad);background:var(--bad-bg)}
+.toast code{font:12px var(--mono);background:var(--code-bg);padding:1px 5px;border-radius:5px}
 
 /* sidebar */
 nav{background:var(--panel);border-right:1px solid var(--line);overflow:auto;padding:16px 12px}
@@ -310,6 +319,7 @@ pre.raw{background:var(--code-bg);padding:16px;border-radius:10px;overflow:auto;
       <span class="lbl">表示するAI</span>
       <div class="pills" id="toolSeg"><button data-v="all" class="on">両方</button><button data-v="claude">Claude</button><button data-v="codex">Codex</button></div>
       <label class="switch"><input type="checkbox" id="arc">保管庫も表示</label>
+      <button class="refresh" id="refresh"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg><span>最新にする</span></button>
       <button class="iconbtn" id="theme" title="明るさを切り替え"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
     </div>
   </header>
@@ -317,8 +327,10 @@ pre.raw{background:var(--code-bg);padding:16px;border-radius:10px;overflow:auto;
   <section class="list" id="list"></section>
   <main id="main"></main>
 </div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
 <script>
 const DATA = /*__DATA__*/null;
+const SERVE = /*__SERVE__*/null;
 
 /* ---------- 言葉の言い換え ---------- */
 const KIND = {
@@ -876,6 +888,28 @@ document.addEventListener("keydown",e=>{
   if(e.key==="/"&&document.activeElement!==$("#q")){e.preventDefault();$("#q").focus()}
   if(e.key==="Escape"){ if(st.q){st.q="";$("#q").value="";renderList()} else if(st.sel){location.hash=""} }
 });
+/* 最新にする: 起動ファイルから開いたとき（SERVE あり）だけ、その場で作り直せる */
+let toastTimer;
+function toast(html,bad,ms){const t=$("#toast");t.innerHTML=html;t.classList.toggle("bad",!!bad);t.classList.add("show");clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove("show"),ms||6000)}
+const LAUNCHER="<code>Open-AgentShelf-Mac.command</code>（Windows は <code>Open-AgentShelf-Windows.bat</code>）";
+$("#refresh").title=`${DATA.generated} 時点の内容です`;
+$("#refresh").onclick=async()=>{
+  if(!SERVE){toast(`このページはファイルとして開いているので、ここからは作り直せません。${LAUNCHER}をダブルクリックして開き直すと、このボタンが使えます。`,true,10000);return}
+  const b=$("#refresh");b.disabled=true;b.querySelector("span").textContent="読み込み中…";
+  try{
+    const r=await fetch("/api/rebuild",{method:"POST",headers:{"X-Shelf-Token":SERVE.token}});
+    const j=await r.json().catch(()=>({}));
+    if(r.status===409)throw new Error("いま作り直しています。少し待ってからもう一度押してください。");
+    if(!r.ok)throw new Error(j.error?`作り直せませんでした（${j.error}）。起動したウィンドウのメッセージを確認してください。`:"作り直せませんでした。起動したウィンドウのメッセージを確認してください。");
+    try{sessionStorage.setItem("shelf-refreshed",JSON.stringify(j))}catch(e){}
+    location.reload();
+  }catch(e){
+    b.disabled=false;b.querySelector("span").textContent="最新にする";
+    const msg=e instanceof TypeError?`起動したウィンドウが閉じられているため作り直せません。${LAUNCHER}をダブルクリックして開き直してください。`:e.message;
+    toast(msg,true,10000);
+  }
+};
+try{const j=JSON.parse(sessionStorage.getItem("shelf-refreshed")||"null");if(j){sessionStorage.removeItem("shelf-refreshed");toast(`最新の内容にしました（${j.count}件・改善の提案 ${j.issues}件）`)}}catch(e){}
 $("#theme").onclick=()=>{const r=document.documentElement;r.dataset.theme=(r.dataset.theme||"light")==="dark"?"light":"dark";try{localStorage.setItem("shelf-theme-v2",r.dataset.theme)}catch(e){}};
 try{const t=localStorage.getItem("shelf-theme-v2");if(t)document.documentElement.dataset.theme=t}catch(e){}
 go();

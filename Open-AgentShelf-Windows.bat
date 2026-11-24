@@ -1,6 +1,7 @@
 @echo off
 chcp 65001 >nul
 rem Agent Shelf を作ってブラウザで開きます（ダブルクリックで実行）
+rem このウィンドウを開いている間は、画面右上の「最新にする」で作り直せます。
 cd /d "%~dp0"
 set PYTHONIOENCODING=utf-8
 set "PY="
@@ -13,14 +14,10 @@ if not defined PY (
   pause
   exit /b 1
 )
-%PY% build.py %*
+%PY% build.py --serve %*
 if errorlevel 1 (
   echo.
   echo うまく作れませんでした。上のメッセージを確認してください。
   pause
   exit /b 1
 )
-start "" "%~dp0index.html"
-echo.
-echo ブラウザで開きました。このウィンドウは閉じて大丈夫です。
-pause
